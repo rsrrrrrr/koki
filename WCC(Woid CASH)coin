@@ -1,0 +1,2085 @@
+#ifndef 
+#ifdef __APPLE_CC__
+static
+#endif
+inline void WCC(Woid CASH)coinhash (void *state, const void *input)
+{
+    sph_blake512_context     ctx_blake;
+    sph_bmw512_context       ctx_bmw;
+    sph_groestl512_context   ctx_groestl;
+    sph_jh512_context        ctx_jh;
+    sph_keccak512_context    ctx_keccak;
+    sph_skein512_context     ctx_skein;
+    
+    unsigned char hash[64];
+
+    sph_bmw512_init(&ctx_bmw);
+    // ZBMW;
+    sph_bmw512 (&ctx_bmw, input, 80);
+    sph_bmw512_close(&ctx_bmw, (void*) hash);
+
+    sph_blake512_init(&ctx_blake);
+    // ZBLAKE;
+    sph_blake512 (&ctx_blake, (const void*) hash, 64);
+    sph_blake512_close(&ctx_blake, (void*) hash);
+    
+    if (hash[0] & 0x8)
+    {
+        sph_groestl512_init(&ctx_groestl);
+        // ZGROESTL;
+        sph_groestl512 (&ctx_groestl, (const void*) hash, 64);
+        sph_groestl512_close(&ctx_groestl, (void*) hash);
+    }
+    else
+    {
+        sph_skein512_init(&ctx_skein);
+        // ZSKEIN;
+        sph_skein512 (&ctx_skein, (const void*) hash, 64);
+        sph_skein512_close(&ctx_skein, (void*) hash);
+    }
+    
+    sph_groestl512_init(&ctx_groestl);
+    // ZGROESTL;
+    sph_groestl512 (&ctx_groestl, (const void*) hash, 64);
+    sph_groestl512_close(&ctx_groestl, (void*) hash);
+
+    sph_jh512_init(&ctx_jh);
+    // ZJH;
+    sph_jh512 (&ctx_jh, (const void*) hash, 64);
+    sph_jh512_close(&ctx_jh, (void*) hash);
+
+    if (hash[0] & 0x8)
+    {
+        sph_blake512_init(&ctx_blake);
+        // ZBLAKE;
+        sph_blake512 (&ctx_blake, (const void*) hash, 64);
+        sph_blake512_close(&ctx_blake, (void*) hash);
+    }
+    else
+    {
+        sph_bmw512_init(&ctx_bmw);
+        // ZBMW;
+        sph_bmw512 (&ctx_bmw, (const void*) hash, 64);
+        sph_bmw512_close(&ctx_bmw, (void*) hash);
+    }
+
+    sph_keccak512_init(&ctx_keccak);
+    // ZKECCAK;
+    sph_keccak512 (&ctx_keccak, (const void*) hash, 64);
+    sph_keccak512_close(&ctx_keccak, (void*) hash);
+
+    sph_skein512_init(&ctx_skein);
+    // SKEIN;
+    sph_skein512 (&ctx_skein, (const void*) hash, 64);
+    sph_skein512_close(&ctx_skein, (void*) hash);
+
+    if (hash[0] & 0x8)
+    {
+        sph_keccak512_init(&ctx_keccak);
+        // ZKECCAK;
+        sph_keccak512 (&ctx_keccak, (const void*) hash, 64);
+        sph_keccak512_close(&ctx_keccak, (void*) hash);
+    }
+    else
+    {
+        sph_jh512_init(&ctx_jh);
+        // ZJH;
+        sph_jh512 (&ctx_jh, (const void*) hash, 64);
+        sph_jh512_close(&ctx_jh, (void*) hash);
+    }
+
+    memcpy(state, hash, 32);
+}
+
+static const uint32_t diff1targ = 0x0000ffff;
+
+
+/* Used externally as confirmation of correct OCL code */
+int WCC(Woid CASH)coin _test(unsigned char *pdata, const unsigned char *ptarget, uint32_t nonce)
+{
+	uint32_t tmp_hash7, Htarg = le32toh(((const uint32_t *)ptarget)[7]);
+	uint32_t data[20], ohash[8];
+
+	be32enc_vect(data, (const uint32_t *)pdata, 19);
+	data[19] = htobe32(nonce);
+	animehash(ohash, data);
+	tmp_hash7 = be32toh(ohash[7]);
+
+	applog(LOG_DEBUG, "htarget %08lx diff1 %08lx hash %08lx",
+				(long unsigned int)Htarg,
+				(long unsigned int)diff1targ,
+				(long unsigned int)tmp_hash7);
+	if (tmp_hash7 > diff1targ)
+		return -1;
+	if (tmp_hash7 > Htarg)
+		return 0;
+	return 1;
+}
+
+void WCC(Woid CASH)coin_regenhash(struct work *work)
+{
+        uint32_t data[20];
+        uint32_t *nonce = (uint32_t *)(work->data + 76);
+        uint32_t *ohash = (uint32_t *)(work->hash);
+
+        be32enc_vect(data, (const uint32_t *)work->data, 19);
+        data[19] = htobe32(*nonce);
+        animehash(ohash, data);
+}
+
+bool scanhash_WCC(Woid CASH)coin(struct thr_info *thr, const unsigned char __maybe_unused *pmidstate,
+		     unsigned char *pdata, unsigned char __maybe_unused *phash1,
+		     unsigned char __maybe_unused *phash, const unsigned char *ptarget,
+		     uint32_t max_nonce, uint32_t *last_nonce, uint32_t n)
+{
+	uint32_t *nonce = (uint32_t *)(pdata + 76);
+	uint32_t data[20];
+	uint32_t tmp_hash7;
+	uint32_t Htarg = le32toh(((const uint32_t *)ptarget)[7]);
+	bool ret = false;
+
+	be32enc_vect(data, (const uint32_t *)pdata, 19);
+
+	while(1) {
+		uint32_t ostate[8];
+
+		*nonce = ++n;
+		data[19] = (n);
+		animehash(ostate, data);
+		tmp_hash7 = (ostate[7]);
+
+		applog(LOG_INFO, "data7 %08lx",
+					(long unsigned int)data[7]);
+
+		if (unlikely(tmp_hash7 <= Htarg)) {
+			((uint32_t *)pdata)[19] = htobe32(n);
+			*last_nonce = n;
+			ret = true;
+			break;
+		}
+
+		if (unlikely((n >= max_nonce) || thr->work_restart)) {
+			*last_nonce = n;
+			break;
+		}
+	}
+
+	return ret;
+#ifdef __APPLE_CC__
+static
+#endif
+inline void WCC(Woid CASH)coinhash (void *state, const void *input)
+{
+    sph_blake512_context     ctx_blake;
+    sph_bmw512_context       ctx_bmw;
+    sph_groestl512_context   ctx_groestl;
+    sph_jh512_context        ctx_jh;
+    sph_keccak512_context    ctx_keccak;
+    sph_skein512_context     ctx_skein;
+    
+    unsigned char hash[64];
+
+    sph_bmw512_init(&ctx_bmw);
+    // ZBMW;
+    sph_bmw512 (&ctx_bmw, input, 80);
+    sph_bmw512_close(&ctx_bmw, (void*) hash);
+
+    sph_blake512_init(&ctx_blake);
+    // ZBLAKE;
+    sph_blake512 (&ctx_blake, (const void*) hash, 64);
+    sph_blake512_close(&ctx_blake, (void*) hash);
+    
+    if (hash[0] & 0x8)
+    {
+        sph_groestl512_init(&ctx_groestl);
+        // ZGROESTL;
+        sph_groestl512 (&ctx_groestl, (const void*) hash, 64);
+        sph_groestl512_close(&ctx_groestl, (void*) hash);
+    }
+    else
+    {
+        sph_skein512_init(&ctx_skein);
+        // ZSKEIN;
+        sph_skein512 (&ctx_skein, (const void*) hash, 64);
+        sph_skein512_close(&ctx_skein, (void*) hash);
+    }
+    
+    sph_groestl512_init(&ctx_groestl);
+    // ZGROESTL;
+    sph_groestl512 (&ctx_groestl, (const void*) hash, 64);
+    sph_groestl512_close(&ctx_groestl, (void*) hash);
+
+    sph_jh512_init(&ctx_jh);
+    // ZJH;
+    sph_jh512 (&ctx_jh, (const void*) hash, 64);
+    sph_jh512_close(&ctx_jh, (void*) hash);
+
+    if (hash[0] & 0x8)
+    {
+        sph_blake512_init(&ctx_blake);
+        // ZBLAKE;
+        sph_blake512 (&ctx_blake, (const void*) hash, 64);
+        sph_blake512_close(&ctx_blake, (void*) hash);
+    }
+    else
+    {
+        sph_bmw512_init(&ctx_bmw);
+        // ZBMW;
+        sph_bmw512 (&ctx_bmw, (const void*) hash, 64);
+        sph_bmw512_close(&ctx_bmw, (void*) hash);
+    }
+
+    sph_keccak512_init(&ctx_keccak);
+    // ZKECCAK;
+    sph_keccak512 (&ctx_keccak, (const void*) hash, 64);
+    sph_keccak512_close(&ctx_keccak, (void*) hash);
+
+    sph_skein512_init(&ctx_skein);
+    // SKEIN;
+    sph_skein512 (&ctx_skein, (const void*) hash, 64);
+    sph_skein512_close(&ctx_skein, (void*) hash);
+
+    if (hash[0] & 0x8)
+    {
+        sph_keccak512_init(&ctx_keccak);
+        // ZKECCAK;
+        sph_keccak512 (&ctx_keccak, (const void*) hash, 64);
+        sph_keccak512_close(&ctx_keccak, (void*) hash);
+    }
+    else
+    {
+        sph_jh512_init(&ctx_jh);
+        // ZJH;
+        sph_jh512 (&ctx_jh, (const void*) hash, 64);
+        sph_jh512_close(&ctx_jh, (void*) hash);
+    }
+
+    memcpy(state, hash, 32);
+}
+
+static const uint32_t diff1targ = 0x0000ffff;
+
+
+/* Used externally as confirmation of correct OCL code */
+int WCC(Woid CASH)coin _test(unsigned char *pdata, const unsigned char *ptarget, uint32_t nonce)
+{
+	uint32_t tmp_hash7, Htarg = le32toh(((const uint32_t *)ptarget)[7]);
+	uint32_t data[20], ohash[8];
+
+	be32enc_vect(data, (const uint32_t *)pdata, 19);
+	data[19] = htobe32(nonce);
+	animehash(ohash, data);
+	tmp_hash7 = be32toh(ohash[7]);
+
+	applog(LOG_DEBUG, "htarget %08lx diff1 %08lx hash %08lx",
+				(long unsigned int)Htarg,
+				(long unsigned int)diff1targ,
+				(long unsigned int)tmp_hash7);
+	if (tmp_hash7 > diff1targ)
+		return -1;
+	if (tmp_hash7 > Htarg)
+		return 0;
+	return 1;
+}
+
+void WCC(Woid CASH)coin_regenhash(struct work *work)
+{
+        uint32_t data[20];
+        uint32_t *nonce = (uint32_t *)(work->data + 76);
+        uint32_t *ohash = (uint32_t *)(work->hash);
+
+        be32enc_vect(data, (const uint32_t *)work->data, 19);
+        data[19] = htobe32(*nonce);
+        animehash(ohash, data);
+}
+
+bool scanhash_WCC(Woid CASH)coin(struct thr_info *thr, const unsigned char __maybe_unused *pmidstate,
+		     unsigned char *pdata, unsigned char __maybe_unused *phash1,
+		     unsigned char __maybe_unused *phash, const unsigned char *ptarget,
+		     uint32_t max_nonce, uint32_t *last_nonce, uint32_t n)
+{
+	uint32_t *nonce = (uint32_t *)(pdata + 76);
+	uint32_t data[20];
+	uint32_t tmp_hash7;
+	uint32_t Htarg = le32toh(((const uint32_t *)ptarget)[7]);
+	bool ret = false;
+
+	be32enc_vect(data, (const uint32_t *)pdata, 19);
+
+	while(1) {
+		uint32_t ostate[8];
+
+		*nonce = ++n;
+		data[19] = (n);
+		animehash(ostate, data);
+		tmp_hash7 = (ostate[7]);
+
+		applog(LOG_INFO, "data7 %08lx",
+					(long unsigned int)data[7]);
+
+		if (unlikely(tmp_hash7 <= Htarg)) {
+			((uint32_t *)pdata)[19] = htobe32(n);
+			*last_nonce = n;
+			ret = true;
+			break;
+		}
+
+		if (unlikely((n >= max_nonce) || thr->work_restart)) {
+			*last_nonce = n;
+			break;
+		}
+	}
+
+	return ret;WCC(Wold CASH)coin_H
+#define WCC(Wold CASH)coin_H
+
+#include "miner.h"
+
+extern int WCC(Wold CASH)coin_test(unsigned char *pdata, const unsigned char *ptarget,
+			uint32_t nonce);
+extern void WCC(Wold CASH)coin_regenhash(struct work *work);
+
+#endif /* WCC(Wold CASH)coin_H */
+/*-
+ * Copyright 2009 Colin Percival, 2011 ArtForz
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * This file was originally written by Colin Percival as part of the Tarsnap
+ * online backup system.
+ */
+
+#include "config.h"
+#include "miner.h"
+
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+
+
+#include "sph/sph_blake.h"
+#include "sph/sph_bmw.h"
+#include "sph/sph_groestl.h"
+#include "sph/sph_jh.h"
+#include "sph/sph_keccak.h"
+#include "sph/sph_skein.h"
+#include "sph/sph_luffa.h"
+#include "sph/sph_cubehash.h"
+#include "sph/sph_shavite.h"
+#include "sph/sph_simd.h"
+#include "sph/sph_echo.h"
+#include "sph/sph_hamsi.h"
+#include "sph/sph_fugue.h"
+#include "sph/sph_shabal.h"
+#include "sph/sph_whirlpool.h"
+
+/* Move init out of loop, so init once externally, and then use one single memcpy with that bigger memory block */
+typedef struct {
+    sph_blake512_context    blake1;
+    sph_bmw512_context      bmw1;
+    sph_groestl512_context  groestl1;
+    sph_skein512_context    skein1;
+    sph_jh512_context       jh1;
+    sph_keccak512_context   keccak1;
+    sph_luffa512_context    luffa1;
+    sph_cubehash512_context cubehash1;
+    sph_shavite512_context  shavite1;
+    sph_simd512_context     simd1;
+    sph_echo512_context     echo1;
+    sph_hamsi512_context    hamsi1;
+    sph_fugue512_context    fugue1;
+    sph_shabal512_context   shabal1;
+    sph_whirlpool_context   whirlpool1;
+} Xhash_context_holder;
+
+static Xhash_context_holder base_contexts;
+
+
+void init_Bhash_contexts()
+{
+    sph_blake512_init(&base_contexts.blake1);
+    sph_bmw512_init(&base_contexts.bmw1);
+    sph_groestl512_init(&base_contexts.groestl1);
+    sph_skein512_init(&base_contexts.skein1);
+    sph_jh512_init(&base_contexts.jh1);
+    sph_keccak512_init(&base_contexts.keccak1);
+    sph_luffa512_init(&base_contexts.luffa1);
+    sph_cubehash512_init(&base_contexts.cubehash1);
+    sph_shavite512_init(&base_contexts.shavite1);
+    sph_simd512_init(&base_contexts.simd1);
+    sph_echo512_init(&base_contexts.echo1);
+    sph_hamsi512_init(&base_contexts.hamsi1);
+    sph_fugue512_init(&base_contexts.fugue1);
+    sph_shabal512_init(&base_contexts.shabal1);
+    sph_whirlpool_init(&base_contexts.whirlpool1);
+}
+
+/*
+ * Encode a length len/4 vector of (uint32_t) into a length len vector of
+ * (unsigned char) in big-endian form.  Assumes len is a multiple of 4.
+ */
+static inline void
+be32enc_vect(uint32_t *dst, const uint32_t *src, uint32_t len)
+{
+    uint32_t i;
+
+    for (i = 0; i < len; i++)
+        dst[i] = htobe32(src[i]);
+}
+
+
+#ifdef __APPLE_CC__
+static
+#endif
+inline void bitblockhash(void *state, const void *input)
+{
+    init_Bhash_contexts();
+
+    Xhash_context_holder ctx;
+
+    uint32_t hashA[16], hashB[16];
+
+    memcpy(&ctx, &base_contexts, sizeof(base_contexts));
+
+    sph_blake512 (&ctx.blake1, input, 80);
+    sph_blake512_close (&ctx.blake1, hashA);
+
+    sph_bmw512 (&ctx.bmw1, hashA, 64);
+    sph_bmw512_close(&ctx.bmw1, hashB);
+
+    sph_groestl512 (&ctx.groestl1, hashB, 64);
+    sph_groestl512_close(&ctx.groestl1, hashA);
+
+    sph_skein512 (&ctx.skein1, hashA, 64);
+    sph_skein512_close(&ctx.skein1, hashB);
+
+    sph_jh512 (&ctx.jh1, hashB, 64);
+    sph_jh512_close(&ctx.jh1, hashA);
+
+    sph_keccak512 (&ctx.keccak1, hashA, 64);
+    sph_keccak512_close(&ctx.keccak1, hashB);
+
+    sph_luffa512 (&ctx.luffa1, hashB, 64);
+    sph_luffa512_close (&ctx.luffa1, hashA);
+
+    sph_cubehash512 (&ctx.cubehash1, hashA, 64);
+    sph_cubehash512_close(&ctx.cubehash1, hashB);
+
+    sph_shavite512 (&ctx.shavite1, hashB, 64);
+    sph_shavite512_close(&ctx.shavite1, hashA);
+
+    sph_simd512 (&ctx.simd1, hashA, 64);
+    sph_simd512_close(&ctx.simd1, hashB);
+
+    sph_echo512 (&ctx.echo1, hashB, 64);
+    sph_echo512_close(&ctx.echo1, hashA);
+
+    sph_hamsi512 (&ctx.hamsi1, hashA, 64);
+    sph_hamsi512_close(&ctx.hamsi1, hashB);
+
+    sph_fugue512 (&ctx.fugue1, hashB, 64);
+    sph_fugue512_close(&ctx.fugue1, hashA);
+
+    sph_shabal512 (&ctx.shabal1, (const unsigned char*)hashA, 64);
+    sph_shabal512_close(&ctx.shabal1, hashB);
+
+    sph_whirlpool (&ctx.whirlpool1, hashB, 64);
+    sph_whirlpool_close(&ctx.whirlpool1, hashA);
+
+    memcpy(state, hashA, 32);
+
+}
+
+static const uint32_t diff1targ = 0x0000ffff;
+
+
+/* Used externally as confirmation of correct OCL code */
+int bitblock_test(unsigned char *pdata, const unsigned char *ptarget, uint32_t nonce)
+{
+  uint32_t tmp_hash7, Htarg = le32toh(((const uint32_t *)ptarget)[7]);
+  uint32_t data[20], ohash[8];
+
+  be32enc_vect(data, (const uint32_t *)pdata, 19);
+  data[19] = htobe32(nonce);
+  bitblockhash(ohash, data);
+  tmp_hash7 = be32toh(ohash[7]);
+
+  applog(LOG_DEBUG, "htarget %08lx diff1 %08lx hash %08lx",
+        (long unsigned int)Htarg,
+        (long unsigned int)diff1targ,
+        (long unsigned int)tmp_hash7);
+  if (tmp_hash7 > diff1targ)
+    return -1;
+  if (tmp_hash7 > Htarg)
+    return 0;
+  return 1;
+}
+
+void bitblock_regenhash(struct work *work)
+{
+  uint32_t data[20];
+  uint32_t *nonce = (uint32_t *)(work->data + 76);
+  uint32_t *ohash = (uint32_t *)(work->hash);
+
+  be32enc_vect(data, (const uint32_t *)work->data, 19);
+  data[19] = htobe32(*nonce);
+  bitblockhash(ohash, data);
+}
+
+bool scanhash_bitblock(struct thr_info *thr, const unsigned char __maybe_unused *pmidstate,
+         unsigned char *pdata, unsigned char __maybe_unused *phash1,
+         unsigned char __maybe_unused *phash, const unsigned char *ptarget,
+         uint32_t max_nonce, uint32_t *last_nonce, uint32_t n)
+{
+  uint32_t *nonce = (uint32_t *)(pdata + 76);
+  uint32_t data[20];
+  uint32_t tmp_hash7;
+  uint32_t Htarg = le32toh(((const uint32_t *)ptarget)[7]);
+  bool ret = false;
+
+  be32enc_vect(data, (const uint32_t *)pdata, 19);
+
+  while(1) {
+    uint32_t ostate[8];
+    *nonce = ++n;
+    data[19] = (n);
+    bitblockhash(ostate, data);
+    tmp_hash7 = (ostate[7]);
+
+    applog(LOG_INFO, "data7 %08lx",
+          (long unsigned int)data[7]);
+
+    if (unlikely(tmp_hash7 <= Htarg)) {
+      ((uint32_t *)pdata)[19] = htobe32(n);
+      *last_nonce = n;
+      ret = true;
+      break;
+    }
+
+    if (unlikely((n >= max_nonce) || thr->work_restart)) {
+      *last_nonce = n;
+      break;
+    }
+  }
+
+  return ret;
+}
+#ifndef WCC(Wold CASH)coin_H
+#define WCC(Wold CASH)coin_H
+
+#include "miner.h"
+
+extern int WCC(Wold CASH)coin_test(unsigned char *pdata, const unsigned char *ptarget,
+			uint32_t nonce);
+extern void WCC(Wold CASH)coin_regenhash(struct work *work);
+
+#endif /* WCC(Wold CASH)coin_H */
+#!/bin/sh
+
+FILE="$(dirname "$0")/../ChangeLog"
+UPDATECMD="git log --oneline --decorate"
+
+echo "Updated on `date`." > $FILE
+echo "If working with git, use \`$UPDATECMD\` for latest change log." >> $FILE
+echo "------------------------------------------------------------------------" >> $FILE
+$UPDATECMD >> $FILE
+#OS junk files
+[Tt]humbs.db
+*.DS_Store
+
+#Visual Studio files
+*.[Oo]bj
+*.user
+*.aps
+*.pch
+*.vspscc
+*.vssscc
+*_i.c
+*_p.c
+*.ncb
+*.suo
+*.tlb
+*.tlh
+*.bak
+*.[Cc]ache
+*.ilk
+*.log
+*.lib
+*.sbr
+*.sdf
+*.opensdf
+*.unsuccessfulbuild
+ipch/
+[Oo]bj/
+[Bb]in
+[Dd]ebug*/
+[Rr]elease*/
+Ankh.NoLoad
+
+#MonoDevelop
+*.pidb
+*.userprefs
+
+#Tooling
+_ReSharper*/
+*.resharper
+[Tt]est[Rr]esult*
+*.sass-cache
+
+#Project files
+[Bb]uild/
+
+#Subversion files
+.svn
+
+# Office Temp Files
+~$*
+
+# vim Temp Files
+*~
+#***************************************************************************
+#                                  _   _ ____  _
+#  Project                     ___| | | |  _ \| |
+#                             / __| | | | |_) | |
+#                            | (__| |_| |  _ <| |___
+#                             \___|\___/|_| \_\_____|
+#
+# Copyright (C) 1999 - 2014, Daniel Stenberg, <daniel@haxx.se>, et al.
+#
+# This software is licensed as described in the file COPYING, which
+# you should have received as part of this distribution. The terms
+# are also available at http://curl.haxx.se/docs/copyright.html.
+#
+# You may opt to use, copy, modify, merge, publish, distribute and/or sell
+# copies of the Software, and permit persons to whom the Software is
+# furnished to do so, under the terms of the COPYING file.
+#
+# This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
+# KIND, either express or implied.
+#
+#***************************************************************************
+
+###########################################################################
+#
+# Makefile for building libcurl with MSVC 6, 7, 8, 9, 10, 11 and 12
+#
+# Usage: see usage message below
+#        Should be invoked from winbuild directory
+#        Edit the paths and desired library name
+#        SSL path is only required if you intend compiling
+#        with SSL.
+#
+# This make file leaves the result either a .lib or .dll file
+# in the \lib directory. It should be called from the \lib
+# directory.
+#
+# An option would have been to allow the source directory to
+# be specified, but I saw no requirement.
+#
+# Another option would have been to leave the .lib and .dll
+# files in the "cfg" directory, but then the make file
+# in \src would need to be changed.
+#
+##############################################################
+
+CFGSET=FALSE
+WINBUILD_DIR=`cd`
+ZIP        = zip.exe
+
+!IF "$(VC)"=="6"
+CC_NODEBUG  = cl.exe /O2 /DNDEBUG
+CC_DEBUG    = cl.exe /Od /Gm /Zi /D_DEBUG /GZ
+CFLAGS     = /I. /I../lib /I../include /nologo /W3 /GX /DWIN32 /YX /FD /c /DBUILDING_LIBCURL
+!ELSE
+CC_NODEBUG  = cl.exe /O2 /DNDEBUG
+CC_DEBUG    = cl.exe /Od /D_DEBUG /RTC1 /Z7 /LDd /W3
+CFLAGS      = /I. /I ../lib /I../include /nologo /W3 /EHsc /DWIN32 /FD /c /DBUILDING_LIBCURL
+!ENDIF
+
+LFLAGS     = /nologo /machine:$(MACHINE)
+LNKDLL     = link.exe /DLL
+LNKLIB     = link.exe /lib
+
+CFLAGS_PDB = /Zi
+LFLAGS_PDB = /incremental:no /opt:ref,icf
+
+CFLAGS_LIBCURL_STATIC  = /DCURL_STATICLIB
+
+WIN_LIBS    = ws2_32.lib wldap32.lib advapi32.lib
+
+BASE_NAME              = libcurl
+BASE_NAME_DEBUG        = $(BASE_NAME)_debug
+BASE_NAME_STATIC       = $(BASE_NAME)_a
+BASE_NAME_STATIC_DEBUG = $(BASE_NAME_STATIC)_debug
+
+LIB_NAME_STATIC        = $(BASE_NAME_STATIC).lib
+LIB_NAME_STATIC_DEBUG  = $(BASE_NAME_STATIC_DEBUG).lib
+LIB_NAME_DLL           = $(BASE_NAME).dll
+LIB_NAME_IMP           = $(BASE_NAME).lib
+LIB_NAME_DLL_DEBUG     = $(BASE_NAME_DEBUG).dll
+LIB_NAME_IMP_DEBUG     = $(BASE_NAME_DEBUG).lib
+
+PDB_NAME_STATIC        = $(BASE_NAME_STATIC).pdb
+PDB_NAME_STATIC_DEBUG  = $(BASE_NAME_STATIC_DEBUG).pdb
+PDB_NAME_DLL           = $(BASE_NAME).pdb
+PDB_NAME_DLL_DEBUG     = $(BASE_NAME_DEBUG).pdb
+
+# CURL Command section
+PROGRAM_NAME = curl.exe
+CURL_CFLAGS   =  /I../lib /I../include /nologo /W3 /EHsc /DWIN32 /FD /c
+CURL_LFLAGS   = /nologo /out:$(DIRDIST)\bin\$(PROGRAM_NAME) /subsystem:console /machine:$(MACHINE)
+CURL_RESFLAGS = /i../include
+
+#############################################################
+## Nothing more to do below this line!
+LIBCURL_SRC_DIR = ..\lib
+CURL_SRC_DIR = ..\src
+
+!IFNDEF WITH_DEVEL
+WITH_DEVEL          = ../../deps
+!ENDIF
+DEVEL_INCLUDE  = $(WITH_DEVEL)/include
+DEVEL_LIB      = $(WITH_DEVEL)/lib/VC/static
+DEVEL_BIN      = $(WITH_DEVEL)/bin
+
+CFLAGS         = $(CFLAGS) /I"$(DEVEL_INCLUDE)"
+LFLAGS         = $(LFLAGS) "/LIBPATH:$(DEVEL_LIB)"
+
+# Runtime library configuration
+!IF "$(MODE)"=="static"
+RTLIB = /MT
+RTLIB_DEBUG = /MTd
+RTLIB_SUFFIX = MT
+!ELSE
+RTLIB = /MD
+RTLIB_DEBUG  = /MDd
+RTLIB_SUFFIX = MD
+!ENDIF
+
+!IF "$(DEBUG)"=="yes"
+RTLIB_SUFFIX = $(RTLIB_SUFFIX)d
+!ENDIF
+
+!IF "$(WITH_SSL)"=="dll"
+SSL_LIBS     = libeay32.lib ssleay32.lib
+USE_SSL      = true
+SSL          = dll
+!ELSEIF "$(WITH_SSL)"=="static"
+SSL_LIBS     = libeay32$(RTLIB_SUFFIX).lib ssleay32$(RTLIB_SUFFIX).lib gdi32.lib user32.lib
+USE_SSL      = true
+SSL          = static
+!ENDIF
+
+!IFDEF USE_SSL
+SSL_CFLAGS   = /DUSE_SSLEAY /I"$(DEVEL_INCLUDE)/openssl"
+!ENDIF
+
+
+!IF "$(WITH_ZLIB)"=="dll"
+ZLIB_LIBS   = zlib.lib
+USE_ZLIB    = true
+ZLIB        = dll
+!ELSEIF "$(WITH_ZLIB)"=="static"
+ZLIB_LIBS   = zlib_a.lib
+USE_ZLIB    = true
+ZLIB        = static
+!ENDIF
+
+!IFDEF USE_ZLIB
+ZLIB_CFLAGS = /DHAVE_ZLIB_H /DHAVE_ZLIB /DHAVE_LIBZ
+!ENDIF
+
+
+!IF "$(WITH_SSH2)"=="dll"
+SSH2_LIBS   = libssh2.lib
+USE_SSH2    = true
+SSH2        = dll
+!ELSEIF "$(WITH_SSH2)"=="static"
+SSH2_LIBS   = libssh2_a.lib user32.lib
+USE_SSH2    = true
+SSH2        = static
+!ENDIF
+
+!IFDEF USE_SSH2
+SSH2_CFLAGS = /DHAVE_LIBSSH2 /DHAVE_LIBSSH2_H /DLIBSSH2_WIN32 /DLIBSSH2_LIBRARY /DUSE_LIBSSH2
+SSH2_CFLAGS = $(SSH2_CFLAGS) /I$(WITH_DEVEL)/include/libssh2
+!ENDIF
+
+
+!IFNDEF USE_IDN
+USE_IDN   = true
+!ELSEIF "$(USE_IDN)"=="yes"
+USE_IDN   = true
+!ENDIF
+
+!IF "$(USE_IDN)"=="true"
+IDN_CFLAGS = $(IDN_CFLAGS) /DUSE_WIN32_IDN /DWANT_IDN_PROTOTYPES
+WIN_LIBS   = $(WIN_LIBS) Normaliz.lib
+!ENDIF
+
+
+!IFNDEF USE_IPV6
+USE_IPV6  = true
+!ELSEIF "$(USE_IPV6)"=="yes"
+USE_IPV6  = true
+!ENDIF
+
+!IF "$(USE_IPV6)"=="true"
+IPV6_CFLAGS = $(IPV6_CFLAGS) /DUSE_IPV6
+!ENDIF
+
+
+!IFNDEF USE_SSPI
+USE_SSPI  = true
+!ELSEIF "$(USE_SSPI)"=="yes"
+USE_SSPI  = true
+!ENDIF
+
+!IF "$(USE_SSPI)"=="true"
+SSPI_CFLAGS = $(SSPI_CFLAGS) /DUSE_WINDOWS_SSPI
+!ENDIF
+
+
+!IFNDEF USE_SPNEGO
+USE_SPNEGO  = true
+!ELSEIF "$(USE_SPNEGO)"=="yes"
+USE_SPNEGO  = true
+!ENDIF
+
+!IF "$(USE_SPNEGO)"=="true"
+SPNEGO_CFLAGS = $(SPNEGO_CFLAGS) /DHAVE_SPNEGO
+!ENDIF
+
+
+!IFNDEF USE_WINSSL
+!IF "$(USE_SSL)"=="true"
+USE_WINSSL  = false
+!ELSE
+USE_WINSSL  = $(USE_SSPI)
+!ENDIF
+!ELSEIF "$(USE_WINSSL)"=="yes"
+USE_WINSSL  = true
+!ENDIF
+
+
+!IF "$(USE_WINSSL)"=="true"
+!IF "$(USE_SSPI)"!="true"
+!ERROR cannot build with WinSSL without SSPI
+!ENDIF
+SSPI_CFLAGS = $(SSPI_CFLAGS) /DUSE_SCHANNEL
+!ENDIF
+
+
+!IF "$(GEN_PDB)"=="yes"
+GEN_PDB = true
+!ENDIF
+
+
+!IFDEF EMBEND_MANIFEST
+MANIFESTTOOL = mt -manifest $(DIRDIST)\$(PROGRAM_NAME).manifest -outputresource:$(DIRDIST)\$(PROGRAM_NAME);1
+!ENDIF
+
+!IF "$(MODE)"=="static"
+TARGET = $(LIB_NAME_STATIC)
+CURL_LIBCURL_LIBNAME=$(LIB_NAME_STATIC)
+AS_DLL = false
+CFGSET = true
+!ELSEIF "$(MODE)"=="dll"
+TARGET = $(LIB_NAME_DLL)
+CURL_LIBCURL_LIBNAME=$(LIB_NAME_IMP)
+AS_DLL = true
+CFGSET = true
+!ENDIF
+
+!IF "$(CFGSET)" == "FALSE"
+!ERROR please choose a valid mode
+!ENDIF
+
+
+
+# CURL_XX macros are for the curl.exe command
+
+!IF "$(DEBUG)"=="yes"
+RC_FLAGS = /dDEBUGBUILD=1 /Fo $@ $(LIBCURL_SRC_DIR)\libcurl.rc
+CC              = $(CC_DEBUG) $(RTLIB_DEBUG)
+
+CURL_CC         = $(CC)
+CURL_RC_FLAGS = /i../include /dDEBUGBUILD=1 /Fo $@ $(CURL_SRC_DIR)\curl.rc
+!ELSE
+RC_FLAGS = /dDEBUGBUILD=0 /Fo $@ $(LIBCURL_SRC_DIR)\libcurl.rc
+CC              = $(CC_NODEBUG) $(RTLIB)
+
+CURL_CC         = $(CC)
+CURL_RC_FLAGS = /i../include /dDEBUGBUILD=0 /Fo $@ $(CURL_SRC_DIR)\curl.rc
+!ENDIF
+
+CURL_CC = $(CURL_CC) $(CURL_CFLAGS)
+
+!IF "$(AS_DLL)" == "true"
+
+LNK       = $(LNKDLL) $(WIN_LIBS) /out:$(LIB_DIROBJ)\$(TARGET)
+!IF "$(DEBUG)"=="yes"
+TARGET    = $(LIB_NAME_DLL_DEBUG)
+LNK       = $(LNK) /DEBUG /IMPLIB:$(LIB_DIROBJ)\$(LIB_NAME_IMP_DEBUG)
+PDB       = $(PDB_NAME_DLL_DEBUG)
+CURL_LIBS = /IMPLIB:$(LIB_DIROBJ)\$(LIB_NAME_IMP_DEBUG)
+!ELSE
+TARGET    = $(LIB_NAME_DLL)
+LNK       = $(LNK)  /IMPLIB:$(LIB_DIROBJ)\$(LIB_NAME_IMP)
+PDB       = $(PDB_NAME_DLL)
+CURL_LIBS = /IMPLIB:$(LIB_DIROBJ)\$(LIB_NAME_IMP)
+!ENDIF
+RESOURCE  = $(LIB_DIROBJ)\libcurl.res
+
+# AS_DLL
+!ELSE
+
+!IF "$(DEBUG)"=="yes"
+TARGET   = $(LIB_NAME_STATIC_DEBUG)
+PDB      = $(PDB_NAME_STATIC_DEBUG)
+!ELSE
+TARGET   = $(LIB_NAME_STATIC)
+PDB      = $(PDB_NAME_STATIC)
+!ENDIF
+LNK      = $(LNKLIB) $(WIN_LIBS) /out:$(LIB_DIROBJ)\$(TARGET)
+CC       = $(CC) $(CFLAGS_LIBCURL_STATIC)
+
+# AS_DLL
+!ENDIF
+
+!IF "$(USE_SSL)"=="true"
+CFLAGS = $(CFLAGS) $(SSL_CFLAGS)
+LFLAGS = $(LFLAGS) $(SSL_LFLAGS) $(SSL_LIBS)
+!ENDIF
+
+!IF "$(USE_ZLIB)"=="true"
+CFLAGS = $(CFLAGS) $(ZLIB_CFLAGS)
+LFLAGS = $(LFLAGS) $(ZLIB_LFLAGS) $(ZLIB_LIBS)
+!ENDIF
+
+!IF "$(USE_SSH2)"=="true"
+CFLAGS = $(CFLAGS) $(SSH2_CFLAGS)
+LFLAGS = $(LFLAGS) $(SSH2_LFLAGS) $(SSH2_LIBS)
+!ENDIF
+
+!IF "$(USE_IDN)"=="true"
+CFLAGS = $(CFLAGS) $(IDN_CFLAGS)
+!ENDIF
+
+!IF "$(USE_IPV6)"=="true"
+CFLAGS = $(CFLAGS) $(IPV6_CFLAGS)
+!ENDIF
+
+!IF "$(USE_SSPI)"=="true"
+CFLAGS = $(CFLAGS) $(SSPI_CFLAGS)
+!ENDIF
+
+!IF "$(USE_SPNEGO)"=="true"
+CFLAGS = $(CFLAGS) $(SPNEGO_CFLAGS)
+!ENDIF
+
+!IF "$(GEN_PDB)"=="true"
+CFLAGS = $(CFLAGS) $(CFLAGS_PDB) /Fd"$(LIB_DIROBJ)\$(PDB)"
+LFLAGS = $(LFLAGS) $(LFLAGS_PDB)
+!ENDIF
+
+LIB_DIROBJ = ..\builds\$(CONFIG_NAME_LIB)-obj-lib
+CURL_DIROBJ = ..\builds\$(CONFIG_NAME_LIB)-obj-curl
+DIRDIST = ..\builds\$(CONFIG_NAME_LIB)\
+
+#
+# curl.exe
+#
+CURL_LINK = link.exe /incremental:no /libpath:"$(DIRDIST)\lib"
+
+#!IF "$(CFG)" == "release-ssh2-ssl-dll-zlib"
+#TARGET   = $(LIB_NAME_STATIC)
+#LNK      = $(LNKLIB) $(WINLIBS) $(SSLLIBS) $(ZLIBLIBS)  $(SSH2LIBS) $(SSL_LFLAGS) $(ZLIB_LFLAGS) $(LFLAGSSSH) /out:$(LIB_DIROBJ)\$(TARGET)
+#CC       = $(CCNODBG) $(RTLIB) $(SSL_CFLAGS) $(ZLIB_CFLAGS) $(CFLAGSLIB)  $(SSH2_CFLAGS)
+#CFGSET   = TRUE
+#!ENDIF
+
+#######################
+# Only the clean target can be used if a config was not provided.
+#
+!IF "$(CFGSET)" == "FALSE"
+clean:
+	@-erase /s *.dll 2> NUL
+	@-erase /s *.exp 2> NUL
+	@-erase /s *.idb 2> NUL
+	@-erase /s *.lib 2> NUL
+	@-erase /s *.obj 2> NUL
+	@-erase /s *.pch 2> NUL
+	@-erase /s *.pdb 2> NUL
+	@-erase /s *.res 2> NUL
+!ELSE
+# A mode was provided, so the library can be built.
+#
+!include CURL_OBJS.inc
+!include LIBCURL_OBJS.inc
+
+!IF "$(AS_DLL)" == "true"
+LIB_OBJS = $(LIBCURL_OBJS) $(RESOURCE)
+!ELSE
+LIB_OBJS = $(LIBCURL_OBJS)
+!ENDIF
+
+EXE_OBJS = $(CURL_OBJS) $(CURL_DIROBJ)\curl.res
+
+all : $(TARGET) $(PROGRAM_NAME)
+
+package: $(TARGET)
+	@cd $(DIRDIST)
+	@-$(ZIP) -9 -q -r ..\$(CONFIG_NAME_LIB).zip .>nul 2<&1
+	@cd $(MAKEDIR)
+
+$(TARGET): $(LIB_OBJS) $(LIB_DIROBJ) $(DISTDIR)
+	@echo Using SSL: $(USE_SSL)
+	@echo Using SSH2: $(USE_SSH2)
+	@echo Using ZLIB: $(USE_ZLIB)
+	@echo Using IDN:  $(USE_IDN)
+	@echo Using IPv6: $(USE_IPV6)
+	@echo Using SSPI: $(USE_SSPI)
+	@echo Using SPNEGO: $(USE_SPNEGO)
+	@echo Using WinSSL: $(USE_WINSSL)
+	@echo CFLAGS:     $(CFLAGS)
+	@echo LFLAGS:     $(LFLAGS)
+	@echo GenPDB:     $(GEN_PDB)
+	@echo Debug:      $(DEBUG)
+	@echo Machine:    $(MACHINE)
+	$(LNK) $(LFLAGS) $(LIB_OBJS)
+	@echo Copying libs...
+	@if exist $(LIB_DIROBJ)\$(LIB_NAME_DLL) copy $(LIB_DIROBJ)\$(LIB_NAME_DLL)       $(DIRDIST)\bin\ /y >nul 2<&1
+	@if exist $(LIB_DIROBJ)\$(LIB_NAME_STATIC) copy $(LIB_DIROBJ)\$(LIB_NAME_STATIC)    $(DIRDIST)\lib\ /y >nul 2<&1
+	@if exist $(LIB_DIROBJ)\$(LIB_NAME_DLL_DEBUG) copy $(LIB_DIROBJ)\$(LIB_NAME_DLL_DEBUG) $(DIRDIST)\bin\ /y >nul 2<&1
+	@if exist $(LIB_DIROBJ)\$(LIB_NAME_STATIC_DEBUG) copy $(LIB_DIROBJ)\$(LIB_NAME_STATIC_DEBUG) $(DIRDIST)\lib\ /y >nul 2<&1
+	@if exist $(LIB_DIROBJ)\$(LIB_NAME_IMP) copy $(LIB_DIROBJ)\$(LIB_NAME_IMP)       $(DIRDIST)\lib\ /y >nul 2<&1
+	@if exist $(LIB_DIROBJ)\$(LIB_NAME_IMP_DEBUG) copy $(LIB_DIROBJ)\$(LIB_NAME_IMP_DEBUG) $(DIRDIST)\lib >nul 2<&1
+	@-copy $(LIB_DIROBJ)\*.exp                 $(DIRDIST)\lib /y >nul 2<&1
+	@-copy $(LIB_DIROBJ)\*.pdb                 $(DIRDIST)\lib /y >nul 2<&1
+	@-copy ..\include\curl\*.h   $(DIRDIST)\include\curl\ /y  >nul 2<&1
+
+$(LIB_OBJS): $(LIB_DIROBJ) $(DIRDIST)
+
+$(DIRDIST):
+	@if not exist "$(DIRDIST)\bin" mkdir $(DIRDIST)\bin
+	@if not exist "$(DIRDIST)\include" mkdir $(DIRDIST)\include
+	@if not exist "$(DIRDIST)\include\curl" mkdir $(DIRDIST)\include\curl
+	@if not exist "$(DIRDIST)\lib" mkdir $(DIRDIST)\lib
+
+$(LIB_DIROBJ):
+	@if not exist "$(LIB_DIROBJ)" mkdir $(LIB_DIROBJ)
+	@if not exist "$(LIB_DIROBJ)\vtls" mkdir $(LIB_DIROBJ)\vtls
+
+$(CURL_DIROBJ):
+	@if not exist "$(CURL_DIROBJ)" mkdir $(CURL_DIROBJ)
+# we need a lib dir for the portability functions from libcurl
+# we use the .c directly here
+	@if not exist "$(CURL_DIROBJ)" mkdir $(CURL_DIROBJ)\lib
+
+.SUFFIXES: .c .obj .res
+
+{$(LIBCURL_SRC_DIR)\}.c{$(LIB_DIROBJ)\}.obj:
+	$(CC) $(CFLAGS) /Fo"$@"  $<
+
+{$(LIBCURL_SRC_DIR)\vtls\}.c{$(LIB_DIROBJ)\vtls\}.obj:
+	$(CC) $(CFLAGS) /Fo"$@"  $<
+
+$(LIB_DIROBJ)\libcurl.res: $(LIBCURL_SRC_DIR)\libcurl.rc
+	rc $(RC_FLAGS)
+
+#
+# curl.exe
+#
+
+
+!IF "$(MODE)"=="static"
+!IF "$(DEBUG)"=="yes"
+CURL_LIBCURL_LIBNAME=$(LIB_NAME_STATIC_DEBUG)
+!ELSE
+CURL_LIBCURL_LIBNAME=$(LIB_NAME_STATIC)
+!ENDIF
+!ELSEIF "$(MODE)"=="dll"
+!IF "$(DEBUG)"=="yes"
+CURL_LIBCURL_LIBNAME=$(LIB_NAME_IMP_DEBUG)
+!ELSE
+CURL_LIBCURL_LIBNAME=$(LIB_NAME_IMP)
+!ENDIF
+!ENDIF
+
+CURL_FROM_LIBCURL=$(CURL_DIROBJ)\tool_hugehelp.obj \
+ $(CURL_DIROBJ)\nonblock.obj \
+ $(CURL_DIROBJ)\rawstr.obj \
+ $(CURL_DIROBJ)\strtoofft.obj \
+ $(CURL_DIROBJ)\warnless.obj
+ 
+$(PROGRAM_NAME): $(CURL_DIROBJ) $(CURL_FROM_LIBCURL) $(EXE_OBJS)
+	$(CURL_LINK) $(CURL_LFLAGS) $(CURL_LIBCURL_LIBNAME) $(WIN_LIBS) $(CURL_FROM_LIBCURL) $(EXE_OBJS)
+	$(MANIFESTTOOL)
+
+{$(CURL_SRC_DIR)\}.c{$(CURL_DIROBJ)\}.obj:
+	$(CC) $(CURL_CFLAGS) /Fo"$@"  $<
+
+$(CURL_DIROBJ)\tool_hugehelp.obj: $(CURL_SRC_DIR)\tool_hugehelp.c
+	$(CURL_CC) $(CURL_CFLAGS) /Zm200 /Fo"$@" $(CURL_SRC_DIR)\tool_hugehelp.c
+$(CURL_DIROBJ)\nonblock.obj: ../lib/nonblock.c
+	$(CURL_CC) $(CURL_CFLAGS) /Fo"$@" ../lib/nonblock.c
+$(CURL_DIROBJ)\rawstr.obj: ../lib/rawstr.c
+	$(CURL_CC) $(CURL_CFLAGS) /Fo"$@" ../lib/rawstr.c
+$(CURL_DIROBJ)\strtoofft.obj: ../lib/strtoofft.c
+	$(CURL_CC) $(CURL_CFLAGS) /Fo"$@" ../lib/strtoofft.c
+$(CURL_DIROBJ)\warnless.obj: ../lib/warnless.c
+	$(CURL_CC) $(CURL_CFLAGS) /Fo"$@" ../lib/warnless.c
+$(CURL_DIROBJ)\curl.res: $(CURL_SRC_DIR)\curl.rc
+	rc $(CURL_RC_FLAGS)
+
+!ENDIF  # End of case where a config was provided.
+Tools needed
+------------
+1. Windows 7 (if you are using Win 8 or above, you will need to use a VM Win 7)
+2. Visual Studio C++ 2013 Express - found at http://www.visualstudio.com/en-us/downloads#d-2013-express
+3. Windows 7.1 SDK - http://www.microsoft.com/en-us/download/details.aspx?id=8279
+
+If you intend to build for native x64, then instead of using <Visual Studio Command Prompt>, you will need to use
+Windows SDK 7.1 Command Prompt and run "setenv /x64 /Release" before starting to build anything.
+
+Also, for x64, after you follow all the steps and you are ready to build. Go to "Project Properties -> VC++ Directories -> Library Directories" 
+and add this folder to the library list: C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64
+
+To run sgminer built using Visual Studios you will need to have Microsoft Visual C++ 2013 Redistributable Package (x86 or x64 depending on your sgminer version) installed. 
+
+Installing dependencies
+-----------------------
+
+1. PThreads
+-----------
+- go to ftp://sourceware.org/pub/pthreads-win32 and download latest source code release
+- extract to some folder
+x86 version:
+	- open Visual Studio Command Prompt (x86)
+	- go to pthreads.2 folder and execute:
+		nmake clean VC-static
+	- copy newly created pthreadVC2.lib to winbuild\dist\lib\x86\ folder
+x64 version:
+	- go to pthreads.2 folder and execute:
+		nmake clean VC-static
+	- copy newly created pthreadVC2.lib to winbuild\dist\lib\x64\ folder
+
+2. Install AMD APP SDK (OpenCL), latest version
+-----------------------------------------------
+- go to http://developer.amd.com/tools-and-sdks/opencl-zone/amd-accelerated-parallel-processing-app-sdk/ and download appropriate version (x86/x64) and install
+- copy C:\Program Files (x86)\AMD APP SDK\2.9\lib\x86\OpenCL.lib to winbuild/dist/lib/x86/
+- copy C:\Program Files (x86)\AMD APP SDK\2.9\bin\x86\OpenCL.dll to winbuild/dist/dll/x86/
+- copy C:\Program Files (x86)\AMD APP SDK\2.9\lib\x86_64\OpenCL.lib to winbuild/dist/lib/x64/
+- copy C:\Program Files (x86)\AMD APP SDK\2.9\bin\x86_64\OpenCL.dll to winbuild/dist/dll/x64/
+- copy C:\Program Files (x86)\AMD APP SDK\2.9\include\CL\* winbuild/dist/include/CL/
+
+
+3. PDCurses
+-----------
+- download source http://sourceforge.net/projects/pdcurses/files/pdcurses/3.4/pdcurs34.zip/download and extract it somewhere
+- copy curses.h to winbuild\dist\include\
+x86 version:
+	- open Visual Studio Command Prompt (x86)
+	- go to win32 folder
+	- execute: nmake -f vcwin32.mak WIDE=1 UTF8=1 pdcurses.lib
+	- copy newly created pdcurses.lib to winbuild\dist\lib\x86\ folder
+x64 version:
+- open Visual Studio Command Prompt (x64)
+	- go to win32 folder
+	- edit vcwin32.mak end change line:
+		cvtres /MACHINE:IX86 /NOLOGO /OUT:pdcurses.obj pdcurses.res
+		to
+		cvtres /MACHINE:X64 /NOLOGO /OUT:pdcurses.obj pdcurses.res
+	- execute: nmake -f vcwin32.mak WIDE=1 UTF8=1 pdcurses.lib
+	- copy newly created pdcurses.lib to winbuild\dist\lib\x64\ folder
+
+
+3. OpenSSL (needed for Curl)
+----------------------------
+- go to http://slproweb.com/products/Win32OpenSSL.html and download latest full installer x86 and/or x64 (not light version)
+- install to default location (e.g C:\OpenSSL-Win32 or C:\OpenSSL-Win64) and select bin/ folder when asked
+- install Visual C++ (x86/x64) Redistributables if needed
+
+4. Curl
+-------
+- go to http://curl.haxx.se/download.html and download latest source (>=7.39.0) and extract it somewhere
+- replace original curl winbuild\MakefileBuild.vc with provided winbuild\MakefileBuild.vc (corrected paths and static library names for VC)
+
+x86 version:
+- open Visual Studio Command Prompt (x86)
+	- go to winbuild folder and execute:
+		nmake -f Makefile.vc mode=static VC=13 WITH_DEVEL=C:\OpenSSL-Win32 WITH_SSL=static ENABLE_SSPI=no ENABLE_IPV6=no ENABLE_IDN=no GEN_PDB=no DEBUG=no MACHINE=x86
+	- copy builds\libcurl-vc13-x86-release-static-ssl-static-spnego\lib\libcurl_a.lib to winbuild\dist\lib\x86
+	- copy builds	\libcurl-vc13-x86-release-static-ssl-static-spnego\include\* winbuild\dist\include\
+
+x64 version:
+- open Visual Studio Command Prompt (x64)
+	- go to winbuild folder and execute:
+		nmake -f Makefile.vc mode=static VC=13 WITH_DEVEL=C:\OpenSSL-Win64 WITH_SSL=static ENABLE_SSPI=no ENABLE_IPV6=no ENABLE_IDN=no GEN_PDB=no DEBUG=no MACHINE=x64
+	- copy builds\libcurl-vc13-x64-release-static-ssl-static-spnego\lib\libcurl_a.lib to winbuild\dist\lib\x64
+	- copy builds\libcurl-vc13-x64-release-static-ssl-static-spnego\include\* winbuild\dist\include\
+
+5. Jansson
+----------
+If using git run commands below from sgminer/ folder:
+
+  git submodule init
+  git submodule update
+  
+or clone/extract Jansson source from https://github.com/akheron/jansson to submodules/jansson folder.
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual C++ Express 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sgminer", "sgminer.vcxproj", "{CCA64DCD-6401-42A3-ABC3-89E48A36D239}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "jansson", "jansson\jansson.vcxproj", "{AFE7D2AA-025C-4837-B4B2-81117E010B3B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Debug|x64 = Debug|x64
+		Release|Win32 = Release|Win32
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{CCA64DCD-6401-42A3-ABC3-89E48A36D239}.Debug|Win32.ActiveCfg = Debug|Win32
+		{CCA64DCD-6401-42A3-ABC3-89E48A36D239}.Debug|Win32.Build.0 = Debug|Win32
+		{CCA64DCD-6401-42A3-ABC3-89E48A36D239}.Debug|x64.ActiveCfg = Debug|x64
+		{CCA64DCD-6401-42A3-ABC3-89E48A36D239}.Debug|x64.Build.0 = Debug|x64
+		{CCA64DCD-6401-42A3-ABC3-89E48A36D239}.Release|Win32.ActiveCfg = Release|Win32
+		{CCA64DCD-6401-42A3-ABC3-89E48A36D239}.Release|Win32.Build.0 = Release|Win32
+		{CCA64DCD-6401-42A3-ABC3-89E48A36D239}.Release|x64.ActiveCfg = Release|x64
+		{CCA64DCD-6401-42A3-ABC3-89E48A36D239}.Release|x64.Build.0 = Release|x64
+		{AFE7D2AA-025C-4837-B4B2-81117E010B3B}.Debug|Win32.ActiveCfg = Debug|Win32
+		{AFE7D2AA-025C-4837-B4B2-81117E010B3B}.Debug|Win32.Build.0 = Debug|Win32
+		{AFE7D2AA-025C-4837-B4B2-81117E010B3B}.Debug|x64.ActiveCfg = Debug|x64
+		{AFE7D2AA-025C-4837-B4B2-81117E010B3B}.Debug|x64.Build.0 = Debug|x64
+		{AFE7D2AA-025C-4837-B4B2-81117E010B3B}.Release|Win32.ActiveCfg = Release|Win32
+		{AFE7D2AA-025C-4837-B4B2-81117E010B3B}.Release|Win32.Build.0 = Release|Win32
+		{AFE7D2AA-025C-4837-B4B2-81117E010B3B}.Release|x64.ActiveCfg = Release|x64
+		{AFE7D2AA-025C-4837-B4B2-81117E010B3B}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{CCA64DCD-6401-42A3-ABC3-89E48A36D239}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>sgminer</RootNamespace>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v120</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v120</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v120</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+    <PlatformToolset>v120</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)output\x86\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)output\x86\obj\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)output\x64\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)output\x64\obj\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)output\x86\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)output\x86\obj\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <LinkIncremental>false</LinkIncremental>
+    <OutDir>$(SolutionDir)output\x64\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)output\x64\obj\</IntDir>
+    <GenerateManifest>false</GenerateManifest>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>USE_SSE2;WIN32;NDEBUG;_CONSOLE;PTW32_STATIC_LIB;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE;WIN32_LEAN_AND_MEAN</PreprocessorDefinitions>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;$(ProjectDir)dist\include\;$(ProjectDir)..\submodules\jansson\src\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <ExceptionHandling>false</ExceptionHandling>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(ProjectDir)dist\lib\x86;$(ProjectDir)jansson\Debug\x86</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <OptimizeReferences>false</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <LinkTimeCodeGeneration>
+      </LinkTimeCodeGeneration>
+      <IgnoreSpecificDefaultLibraries>LIBCMT</IgnoreSpecificDefaultLibraries>
+    </Link>
+    <PostBuildEvent>
+      <Command>
+        xcopy /Y /E /I "$(ProjectDir)..\kernel" "$(OutDir)\kernel"
+      </Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>
+        del /f "$(OutDir)*.exe"
+        del /f "$(OutDir)*.dll"
+
+        echo #define USE_GIT_VERSION 1 &gt; "$(ProjectDir)dist\include\gitversion.h"
+        FOR /F "tokens=*" %%i IN ('call git describe "--abbrev=4" --dirty') DO echo #define GIT_VERSION "%%i" &gt;&gt; "$(ProjectDir)dist\include\gitversion.h"
+        exit 0
+      </Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>_M_AMD64;_AMD64_;WIN32;_WIN64;NDEBUG;_CONSOLE;PTW32_STATIC_LIB;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE;WIN32_LEAN_AND_MEAN</PreprocessorDefinitions>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;$(ProjectDir)dist\include\;$(ProjectDir)..\submodules\jansson\src\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <ExceptionHandling>false</ExceptionHandling>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(ProjectDir)dist\lib\x64;$(ProjectDir)jansson\Debug\x64</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <OptimizeReferences>false</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <LinkTimeCodeGeneration>
+      </LinkTimeCodeGeneration>
+      <IgnoreSpecificDefaultLibraries>LIBCMT</IgnoreSpecificDefaultLibraries>
+    </Link>
+    <PostBuildEvent>
+      <Command>
+        xcopy /Y /E /I "$(ProjectDir)..\kernel" "$(OutDir)\kernel"
+      </Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>
+        del /f "$(OutDir)*.exe"
+        del /f "$(OutDir)*.dll"
+
+        echo #define USE_GIT_VERSION 1 &gt; "$(ProjectDir)dist\include\gitversion.h"
+        FOR /F "tokens=*" %%i IN ('call git describe "--abbrev=4" --dirty') DO echo #define GIT_VERSION "%%i" &gt;&gt; "$(ProjectDir)dist\include\gitversion.h"
+        exit 0
+      </Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>_CONSOLE;WIN32;PTW32_STATIC_LIB;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE;WIN32_LEAN_AND_MEAN</PreprocessorDefinitions>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;$(ProjectDir)dist\include\;$(ProjectDir)..\submodules\jansson\src\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExceptionHandling>false</ExceptionHandling>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>false</OptimizeReferences>
+      <AdditionalLibraryDirectories>$(ProjectDir)dist\lib\x86;$(ProjectDir)jansson\Release\x86</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <IgnoreSpecificDefaultLibraries>LIBCMT</IgnoreSpecificDefaultLibraries>
+      <LinkTimeCodeGeneration>
+      </LinkTimeCodeGeneration>
+    </Link>
+    <PostBuildEvent>
+      <Command>
+        xcopy /Y /E /I "$(ProjectDir)..\kernel" "$(OutDir)\kernel"
+      </Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>
+        del /f "$(OutDir)*.exe"
+        del /f "$(OutDir)*.dll"
+
+        echo #define USE_GIT_VERSION 1 &gt; "$(ProjectDir)dist\include\gitversion.h"
+        FOR /F "tokens=*" %%i IN ('call git describe "--abbrev=4" --dirty') DO echo #define GIT_VERSION "%%i" &gt;&gt; "$(ProjectDir)dist\include\gitversion.h"
+        exit 0
+      </Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>
+      </PrecompiledHeader>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>_M_AMD64;_AMD64_;WIN32;_WIN64;PTW32_STATIC_LIB;_CRT_SECURE_NO_WARNINGS;_CRT_SECURE_NO_DEPRECATE;WIN32_LEAN_AND_MEAN</PreprocessorDefinitions>
+      <CompileAs>CompileAsCpp</CompileAs>
+      <AdditionalIncludeDirectories>$(ProjectDir)..;$(ProjectDir)dist\include\;$(ProjectDir)..\submodules\jansson\src\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExceptionHandling>false</ExceptionHandling>
+      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>false</OptimizeReferences>
+      <AdditionalLibraryDirectories>$(ProjectDir)dist\lib\x64;$(ProjectDir)jansson\Release\x64</AdditionalLibraryDirectories>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
+      <IgnoreSpecificDefaultLibraries>LIBCMT</IgnoreSpecificDefaultLibraries>
+      <LinkTimeCodeGeneration>
+      </LinkTimeCodeGeneration>
+    </Link>
+    <PostBuildEvent>
+      <Command>
+        xcopy /Y /E /I "$(ProjectDir)..\kernel" "$(OutDir)\kernel"
+      </Command>
+    </PostBuildEvent>
+    <PreBuildEvent>
+      <Command>
+        del /f "$(OutDir)*.exe"
+        del /f "$(OutDir)*.dll"
+
+        echo #define USE_GIT_VERSION 1 &gt; "$(ProjectDir)dist\include\gitversion.h"
+        FOR /F "tokens=*" %%i IN ('call git describe "--abbrev=4" --dirty') DO echo #define GIT_VERSION "%%i" &gt;&gt; "$(ProjectDir)dist\include\gitversion.h"
+        exit 0
+      </Command>
+    </PreBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\adl.c" />
+    <ClCompile Include="..\algorithm.c" />
+    <ClCompile Include="..\algorithm\.c" />
+    <ClCompile Include="..\algorithm\WCC(Wold CASH)coin.c" />
+    <ClCompile Include="..\algorithm\animecoin.c" />
+    <ClCompile Include="..\algorithm\bitblock.c" />
+    <ClCompile Include="..\algorithm\neoscrypt.c" />
+    <ClCompile Include="..\algorithm\talkcoin.c" />
+    <ClCompile Include="..\algorithm\whirlpoolx.c" />
+    <ClCompile Include="..\algorithm\x14.c" />
+    <ClCompile Include="..\algorithm\fresh.c" />
+    <ClCompile Include="..\algorithm\whirlcoin.c" />
+    <ClCompile Include="..\api.c" />
+    <ClCompile Include="..\ccan\opt\helpers.c" />
+    <ClCompile Include="..\ccan\opt\opt.c" />
+    <ClCompile Include="..\ccan\opt\parse.c" />
+    <ClCompile Include="..\ccan\opt\usage.c" />
+    <ClCompile Include="..\algorithm\darkcoin.c" />
+    <ClCompile Include="..\config_parser.c" />
+    <ClCompile Include="..\driver-opencl.c" />
+    <ClCompile Include="..\events.c" />
+    <ClCompile Include="..\findnonce.c" />
+    <ClCompile Include="..\algorithm\fuguecoin.c" />
+    <ClCompile Include="..\algorithm\groestlcoin.c" />
+    <ClCompile Include="..\hexdump.c" />
+    <ClCompile Include="..\algorithm\inkcoin.c" />
+    <ClCompile Include="..\logging.c" />
+    <ClCompile Include="..\algorithm\marucoin.c" />
+    <ClCompile Include="..\algorithm\maxcoin.c" />
+    <ClCompile Include="..\algorithm\myriadcoin-groestl.c" />
+    <ClCompile Include="..\ocl.c" />
+    <ClCompile Include="..\ocl\binary_kernel.c" />
+    <ClCompile Include="..\ocl\build_kernel.c" />
+    <ClCompile Include="..\ocl\patch_kernel.c" />
+    <ClCompile Include="..\pool.c" />
+    <ClCompile Include="..\algorithm\quarkcoin.c" />
+    <ClCompile Include="..\algorithm\qubitcoin.c" />
+    <ClCompile Include="..\algorithm\scrypt.c" />
+    <ClCompile Include="..\sgminer.c" />
+    <ClCompile Include="..\algorithm\sifcoin.c" />
+    <ClCompile Include="..\sph\aes_helper.c" />
+    <ClCompile Include="..\sph\blake.c" />
+    <ClCompile Include="..\sph\bmw.c" />
+    <ClCompile Include="..\sph\cubehash.c" />
+    <ClCompile Include="..\sph\echo.c" />
+    <ClCompile Include="..\sph\fugue.c" />
+    <ClCompile Include="..\sph\groestl.c" />
+    <ClCompile Include="..\sph\hamsi.c" />
+    <ClCompile Include="..\sph\hamsi_helper.c" />
+    <ClCompile Include="..\sph\jh.c" />
+    <ClCompile Include="..\sph\keccak.c" />
+    <ClCompile Include="..\sph\luffa.c" />
+    <ClCompile Include="..\sph\panama.c" />
+    <ClCompile Include="..\sph\sha2.c" />
+    <ClCompile Include="..\sph\sha2big.c" />
+    <ClCompile Include="..\sph\shabal.c" />
+    <ClCompile Include="..\sph\shavite.c" />
+    <ClCompile Include="..\sph\simd.c" />
+    <ClCompile Include="..\sph\skein.c" />
+    <ClCompile Include="..\algorithm\twecoin.c" />
+    <ClCompile Include="..\sph\whirlpool.c" />
+    <ClCompile Include="..\util.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\adl.h" />WCC(Wold CASH
+    <ClInclude Include="..\algorithm.h" />
+    <ClInclude Include="..\algorithm\WCC(Wold CASHcoin.h" />
+    <ClInclude Include="..\algorithm\animecoin.h" />
+    <ClInclude Include="..\algorithm\bitblock.h" />
+    <ClInclude Include="..\algorithm\neoscrypt.h" />
+    <ClInclude Include="..\algorithm\talkcoin.h" />
+    <ClInclude Include="..\algorithm\whirlpoolx.h" />
+    <ClInclude Include="..\algorithm\x14.h" />
+    <ClInclude Include="..\algorithm\fresh.h" />
+    <ClInclude Include="..\algorithm\whirlcoin.h" />
+    <ClInclude Include="..\api.h" />
+    <ClInclude Include="..\arg-nonnull.h" />
+    <ClInclude Include="..\bench_block.h" />
+    <ClInclude Include="..\c++defs.h" />
+    <ClInclude Include="..\compat.h" />
+    <ClInclude Include="..\algorithm\darkcoin.h" />
+    <ClInclude Include="..\config_parser.h" />
+    <ClInclude Include="..\driver-opencl.h" />
+    <ClInclude Include="..\elist.h" />
+    <ClInclude Include="..\events.h" />
+    <ClInclude Include="..\findnonce.h" />
+    <ClInclude Include="..\algorithm\fuguecoin.h" />
+    <ClInclude Include="..\algorithm\groestlcoin.h" />
+    <ClInclude Include="..\algorithm\inkcoin.h" />
+    <ClInclude Include="..\logging.h" />
+    <ClInclude Include="..\algorithm\marucoin.h" />
+    <ClInclude Include="..\algorithm\maxcoin.h" />
+    <ClInclude Include="..\miner.h" />
+    <ClInclude Include="..\algorithm\myriadcoin-groestl.h" />
+    <ClInclude Include="..\ocl.h" />
+    <ClInclude Include="..\ocl\binary_kernel.h" />
+    <ClInclude Include="..\ocl\build_kernel.h" />
+    <ClInclude Include="..\ocl\patch_kernel.h" />
+    <ClInclude Include="..\pool.h" />
+    <ClInclude Include="..\algorithm\quarkcoin.h" />
+    <ClInclude Include="..\algorithm\qubitcoin.h" />
+    <ClInclude Include="..\algorithm\scrypt.h" />
+    <ClInclude Include="..\algorithm\sifcoin.h" />
+    <ClInclude Include="..\sph\sph_blake.h" />
+    <ClInclude Include="..\sph\sph_bmw.h" />
+    <ClInclude Include="..\sph\sph_cubehash.h" />
+    <ClInclude Include="..\sph\sph_echo.h" />
+    <ClInclude Include="..\sph\sph_fugue.h" />
+    <ClInclude Include="..\sph\sph_groestl.h" />
+    <ClInclude Include="..\sph\sph_hamsi.h" />
+    <ClInclude Include="..\sph\sph_jh.h" />
+    <ClInclude Include="..\sph\sph_keccak.h" />
+    <ClInclude Include="..\sph\sph_luffa.h" />
+    <ClInclude Include="..\sph\sph_panama.h" />
+    <ClInclude Include="..\sph\sph_sha2.h" />
+    <ClInclude Include="..\sph\sph_shabal.h" />
+    <ClInclude Include="..\sph\sph_shavite.h" />
+    <ClInclude Include="..\sph\sph_simd.h" />
+    <ClInclude Include="..\sph\sph_skein.h" />
+    <ClInclude Include="..\sph\sph_types.h" />
+    <ClInclude Include="..\algorithm\twecoin.h" />
+    <ClInclude Include="..\sph\sph_whirlpool.h" />
+    <ClInclude Include="..\uthash.h" />
+    <ClInclude Include="..\util.h" />
+    <ClInclude Include="..\warn-on-use.h" />
+    <ClInclude Include="dist\include\config.h" />
+    <ClInclude Include="dist\include\winbuild.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.txt" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Header Files\sph">
+      <UniqueIdentifier>{8ff97542-2c8c-456f-9b09-ff1e3910e80c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\sph">
+      <UniqueIdentifier>{7bfc5c04-e7b8-4d6c-973c-2a0ed07b2a54}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ocl">
+      <UniqueIdentifier>{ab693ca5-5746-44aa-8fd8-5291a2b5a766}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ocl">
+      <UniqueIdentifier>{bd01bdbc-b9ea-446c-93d5-b5199bf47835}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\algorithm">
+      <UniqueIdentifier>{ab073c91-df9c-4d43-86e8-1469a8ff1571}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\algorithm">
+      <UniqueIdentifier>{8cc454ef-b019-4f41-bb22-2dd8941888c8}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\adl.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\api.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\driver-opencl.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\findnonce.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\hexdump.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\logging.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sgminer.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\util.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ccan\opt\opt.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ccan\opt\parse.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ccan\opt\usage.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ccan\opt\helpers.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\pool.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\aes_helper.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\blake.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\bmw.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\cubehash.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\echo.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\fugue.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\groestl.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\hamsi.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\hamsi_helper.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\jh.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\keccak.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\luffa.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\panama.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\sha2.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\sha2big.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\shavite.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\simd.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\skein.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ocl\binary_kernel.c">
+      <Filter>Source Files\ocl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ocl\build_kernel.c">
+      <Filter>Source Files\ocl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ocl\patch_kernel.c">
+      <Filter>Source Files\ocl</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\animecoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\darkcoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\fuguecoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\groestlcoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\inkcoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\marucoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\maxcoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\myriadcoin-groestl.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\quarkcoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\qubitcoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\scrypt.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\sifcoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\twecoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\config_parser.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\talkcoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\bitblock.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\x14.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\fresh.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\whirlcoin.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\shabal.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\sph\whirlpool.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="..\ocl.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\neoscrypt.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="..\events.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\algorithm\whirlpoolx.c">
+      <Filter>Source Files\algorithm</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\adl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\arg-nonnull.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\bench_block.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\c++defs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\compat.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\driver-opencl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\elist.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\findnonce.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\logging.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\miner.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ocl.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\uthash.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\util.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\warn-on-use.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dist\include\config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="dist\include\winbuild.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\pool.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_types.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_skein.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_simd.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_shavite.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_sha2.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_panama.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_luffa.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_keccak.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_jh.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_hamsi.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_groestl.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_fugue.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_echo.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_cubehash.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_bmw.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_blake.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ocl\binary_kernel.h">
+      <Filter>Header Files\ocl</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ocl\build_kernel.h">
+      <Filter>Header Files\ocl</Filter>
+    </ClInclude>
+    <ClInclude Include="..\ocl\patch_kernel.h">
+      <Filter>Header Files\ocl</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\animecoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\darkcoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\fuguecoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\groestlcoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\inkcoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\marucoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\maxcoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\myriadcoin-groestl.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\quarkcoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\qubitcoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\scrypt.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\sifcoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\twecoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\api.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\config_parser.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\talkcoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\bitblock.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\x14.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\fresh.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\whirlcoin.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_whirlpool.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\sph\sph_shabal.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\neoscrypt.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="..\events.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\algorithm\whirlpoolx.h">
+      <Filter>Header Files\algorithm</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="README.txt" />
+  </ItemGroup>
+</Project>
